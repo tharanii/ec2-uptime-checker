@@ -1,0 +1,39 @@
+import boto3
+from datetime import datetime, timedelta, timezone
+import os
+
+# Specify the region to check for instances
+region = 'us-east-1'
+#SNS_TOPIC_ARN = 'arn:aws:sns***********************************************'
+
+# Connect to the EC2 and SNS services
+ec2_client = boto3.client('ec2', region_name=region)
+sns_client = boto3.client('sns', region_name=region)
+
+def lambda_handler(event, context):
+    # Get the current time
+    now = datetime.now(timezone.utc)
+
+    # Get a list of all instances in the region
+    response = ec2_client.describe_instances()
+    instances = response['Reservations']
+
+    # Check each instance for running time
+    for reservation in instances:
+        for instance in reservation['Instances']:
+            instance_id = instance['InstanceId']
+            launch_time = instance['LaunchTime']
+            uptime = now - launch_time
+            # If the instance has been running for more than 3 hours, send an email
+            if uptime >= timedelta(hours=3) and instance['State']['Name'] == 'running':
+                message = f"Instance {instance_id} has been running for {uptime} since {launch_time}."
+                # Publish the message to an SNS topic
+                sns_client.publish(
+                    #TopicArn=os.environ['SNS_TOPIC_ARN'],
+                    TopicArn='arn:aws:sns:*********************:gen-ec2-email-notification',
+                    Message=message
+                )
+    return {
+        'statusCode': 200,
+        'body': 'Script executed successfully'
+    }
